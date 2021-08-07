@@ -23,6 +23,15 @@ mod erc721 {
         #[ink(topic)]
         token_id: u32
     }
+    #[ink(event)]
+    pub struct Approve {
+        #[ink(topic)]
+        owner: AccountId,
+        #[ink(topic)]
+        spender: AccountId,
+        #[ink(topic)]
+        token_id: u32
+    }
     impl MyContract {
         #[ink(constructor)]
         pub fn new() -> Self {
@@ -49,6 +58,11 @@ mod erc721 {
                 Some(owner) => {
                     if caller == owner {
                         self.approved.insert(token_id, spender);
+                        self.env().emit_event(Approve {
+                            owner,
+                            spender,
+                            token_id
+                        });
                     }else {
                         panic!("this is not your token")
                     }
@@ -63,11 +77,11 @@ mod erc721 {
             self.approved.get(&token_id).copied()
         }
         //tests are not working with payable functions
-        #[ink(message/*comment the ", payalbe" out to run tests*/, payable)]
+        #[ink(message/*comment the ", payalbe" out to run tests*/ , payable )]
         pub fn mint(&mut self) {
-/*comment this out*/if self.env().transferred_balance() != 10u128.pow(12) as u128 {
+ /*comment this out*/if self.env().transferred_balance() != 10u128.pow(12) as u128 {
 /*comment this out*/    panic!("You need to pay the price of creating a token");
-/*comment this out*/}
+ /*comment this out*/}
             let caller = self.env().caller();
             self.owners.insert(self.last_id, caller);
             self.last_id+=1;
@@ -120,6 +134,21 @@ mod erc721 {
                     }
                 }
                 None => panic!("Transfer failed"),
+            }
+        }
+        #[ink(message)]
+        pub fn burn(&mut self, token_id: u32) {
+            let caller = self.env().caller();
+            let result = self.owner_of(token_id);
+            match result {
+                Some(owner) => {
+                    if owner != caller {
+                        panic!("You are not the owner of this token");
+                    }
+                    self.owners.insert(token_id, Default::default());
+                    self.decrement_balance(caller);
+                }
+                None => panic!("There is no such token"),
             }
         }
         fn increment_balance(&mut self, owner: AccountId) {
@@ -186,6 +215,17 @@ mod erc721 {
             contract.transfer_from(AccountId::from([0x2; 32]), contract.last_id-1);
             assert_eq!(contract.owner_of(contract.last_id-1), Some(AccountId::from([0x2; 32])));
             assert_eq!(contract.balance_of(AccountId::from([0x1; 32])), 0);
+        }
+        #[ink::test]
+        fn burn_works() {
+            let mut contract = MyContract::new();
+            assert_eq!(contract.owner_of(1), None);
+            contract.mint();
+            assert_eq!(contract.owner_of(1), Some(AccountId::from([0x1; 32])));
+            assert_eq!(contract.balance_of(AccountId::from([0x1; 32])), 1);
+            contract.burn(1);
+            assert_eq!(contract.balance_of(AccountId::from([0x1; 32])), 0);
+            assert_eq!(contract.owner_of(1), Some(Default::default()));
         }
     } 
 }
