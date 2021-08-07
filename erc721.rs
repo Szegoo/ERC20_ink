@@ -62,8 +62,12 @@ mod erc721 {
         pub fn approval_of(&self, token_id: u32) -> Option<AccountId> {
             self.approved.get(&token_id).copied()
         }
-        #[ink(message)]
+        //tests are not working with payable functions
+        #[ink(message/*comment the ", payalbe" out to run tests*/, payable)]
         pub fn mint(&mut self) {
+/*comment this out*/if self.env().transferred_balance() != 10u128.pow(12) as u128 {
+/*comment this out*/    panic!("You need to pay the price of creating a token");
+/*comment this out*/}
             let caller = self.env().caller();
             self.owners.insert(self.last_id, caller);
             self.last_id+=1;
@@ -127,6 +131,7 @@ mod erc721 {
             self.balances.insert(owner, old_value-1);
         }
     }
+    //tests are not working with payable functions
     #[cfg(test)]
     mod tests {
         use super::*;
